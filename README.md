@@ -37,7 +37,7 @@ Each Song uses genre and mood (categorical matches), energy and acousticness (nu
 
 Two rules produce a recommendation: the Scoring Rule (score_song) scores one song from those weighted features, and the Ranking Rule (recommend_songs) scores every song, sorts them, and returns the top k.
 
-This system likely over-prioritizes genre matches, since a 2.0-point genre bonus can outweigh strong mood and energy alignment combined. A song that's a near-perfect mood and energy match but in a different genre could rank below a mediocre song that merely shares the favorite genre. This risks creating a "filter bubble" — the recommender may keep surfacing the same genre repeatedly rather than surfacing genuinely well-matched songs across genres, and it has no way to detect if a user's taste is evolving or situational (e.g. wanting something energetic on some days, chill on others) since target_energy is a single fixed value rather than a range.
+This system likely over-prioritizes genre matches, since a 2.0-point genre bonus can outweigh strong mood and energy alignment combined. A song that's a near-perfect mood and energy match but in a different genre could rank below a mediocre song that merely shares the favorite genre. This risks creating a "filter bubble" — the recommender may keep surfacing the same genre repeatedly rather than surfacing genuinely well-matched songs across genres, and it has no way to detect if a user's taste is evolving or situational (e.g. wanting something energetic on some days, chill on others) since target_energy is a single fixed value rather than a range.p
 
 ---
 
@@ -80,6 +80,28 @@ You can add more tests in `tests/test_recommender.py`.
 
 Paste a sample of your recommender's output here as a text block so a reader can see what it produces:
 
+Recommendations for profile: pop / happy
+
+1. Sunrise City — Neon Echo
+   Score: 3.98
+   Reasons: genre match (+2.0), mood match (+1.0), energy similarity (+0.98)
+
+2. Gym Hero — Max Pulse
+   Score: 2.87
+   Reasons: genre match (+2.0), energy similarity (+0.87)
+
+3. Rooftop Lights — Indigo Parade
+   Score: 1.96
+   Reasons: mood match (+1.0), energy similarity (+0.96)
+
+4. Night Drive Loop — Neon Echo
+   Score: 0.95
+   Reasons: energy similarity (+0.95)
+
+5. Concrete Kings — MC Verdict
+   Score: 0.94
+   Reasons: energy similarity (+0.94)
+
 ```
 # e.g.:
 # User profile: genre=indie, mood=chill, energy=low
@@ -87,6 +109,8 @@ Paste a sample of your recommender's output here as a text block so a reader can
 #   1. ...
 #   2. ...
 #   3. ...
+
+
 ```
 
 **Screenshot or video** *(optional)*: <!-- Insert a screenshot or demo video link here -->

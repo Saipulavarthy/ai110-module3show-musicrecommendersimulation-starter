@@ -174,43 +174,95 @@ def load_songs(filepath: str) -> List[Dict]:
 
 def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     """
-    Scores a single song (dict) against user preferences (dict).
-    Accepts either the rich keys (favorite_genre/favorite_mood/target_energy)
-    or the short starter keys (genre/mood/energy).
-    Required by recommend_songs() and src/main.py
+    Score a single song against a user's taste profile.
+
+    Scoring recipe (points are additive):
+        +2.0  if the song's genre exactly matches the user's favorite genre
+        +1.0  if the song's mood exactly matches the user's favorite mood
+        up to +1.0 for energy similarity, computed as
+              1.0 - abs(song_energy - target_energy), which rewards closeness
+              to the target rather than raw magnitude (0.0 when the energies
+              are a full 1.0 apart)
+        +0.5  if the user likes acoustic songs and the song's acousticness > 0.6
+
+    Parameters:
+        user_prefs (Dict): The user's taste profile. Read with the rich keys
+            favorite_genre / favorite_mood / target_energy / likes_acoustic,
+            falling back to the starter keys genre / mood / energy so the CLI
+            demo profile keeps working. Missing keys simply skip their rule.
+        song (Dict): A single song row (as produced by load_songs), with
+            genre, mood, energy, and acousticness among its keys.
+
+    Returns:
+        Tuple[float, List[str]]: A pair (total_score, reasons) where
+            total_score is the unrounded sum of all points earned, and reasons
+            is a list of short human-readable strings — one per rule that
+            contributed a nonzero number of points, e.g.
+            "genre match (+2.0)", "energy similarity (+0.73)". Rules that did
+            not fire are omitted from the list.
     """
+    # Read profile fields, tolerating the shorter starter keys and missing keys.
     fav_genre = user_prefs.get("favorite_genre", user_prefs.get("genre"))
     fav_mood = user_prefs.get("favorite_mood", user_prefs.get("mood"))
     target_energy = user_prefs.get("target_energy", user_prefs.get("energy"))
+    likes_acoustic = user_prefs.get("likes_acoustic", False)
 
-    return _score_core(
-        fav_genre=fav_genre,
-        acceptable_genres=user_prefs.get("acceptable_genres", []),
-        fav_mood=fav_mood,
-        target_energy=target_energy,
-        energy_tolerance=user_prefs.get("energy_tolerance"),
-        likes_acoustic=user_prefs.get("likes_acoustic", False),
-        song_genre=song.get("genre", ""),
-        song_mood=song.get("mood", ""),
-        song_energy=float(song.get("energy", 0.0)),
-        song_acousticness=float(song.get("acousticness", 0.0)),
-    )
+    score = 0.0
+    reasons: List[str] = []
+
+    # --- Genre: exact match, worth the most. ---
+    if fav_genre is not None and song.get("genre") == fav_genre:
+        score += 2.0
+        reasons.append("genre match (+2.0)")
+
+    # --- Mood: exact match. ---
+    if fav_mood is not None and song.get("mood") == fav_mood:
+        score += 1.0
+        reasons.append("mood match (+1.0)")
+
+    # --- Energy: reward closeness to the target, not high energy. ---
+    if target_energy is not None:
+        # 1.0 at an exact hit, decaying to 0.0 as the gap approaches 1.0.
+        similarity = 1.0 - abs(float(song.get("energy", 0.0)) - float(target_energy))
+        if similarity > 0:
+            score += similarity  # keep the full-precision value in the score
+            # Round only for the human-readable reason string.
+            reasons.append(f"energy similarity (+{similarity:.2f})")
+
+    # --- Acoustic: small bonus when the user wants acoustic and the song is. ---
+    if likes_acoustic and float(song.get("acousticness", 0.0)) > 0.6:
+        score += 0.5
+        reasons.append("acoustic bonus (+0.5)")
+
+    return score, reasons
 
 
-def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
+def recommend_songs(
+    user_prefs: Dict, songs: List[Dict], k: int = 5
+) -> List[Tuple[Dict, float, List[str]]]:
     """
-    Scores every song (Scoring Rule) then sorts and takes the top k (Ranking Rule).
-    Returns (song_dict, score, explanation).
-    Required by src/main.py
-    """
-    scored: List[Tuple[Dict, float, str]] = []
-    for song in songs:
-        score, reasons = score_song(user_prefs, song)
-        if reasons:
-            explanation = "it " + ", and ".join(reasons)
-        else:
-            explanation = "it was included as a fallback"
-        scored.append((song, score, explanation))
+    Rank songs for a user and return the top k (the Ranking Rule).
 
-    scored.sort(key=lambda item: item[1], reverse=True)
-    return scored[:k]
+    Scores every song with score_song (the Scoring Rule), pairs each song with
+    its score and reasons, sorts by score from highest to lowest, and returns
+    only the best k. The original song dicts are never mutated — each result is
+    a new (song, score, reasons) tuple that references the same song dict.
+
+    Parameters:
+        user_prefs (Dict): The user's taste profile passed through to score_song.
+        songs (List[Dict]): The catalog of song dicts to rank (e.g. from
+            load_songs). This list is not modified.
+        k (int): The maximum number of recommendations to return. Defaults to 5.
+            If there are fewer than k songs, all of them are returned.
+
+    Returns:
+        List[Tuple[Dict, float, List[str]]]: Up to k tuples of
+            (song, score, reasons), ordered by descending score.
+    """
+    # Pair each song with its (score, reasons); the * unpacks score_song's
+    # (score, reasons) return so each item is a flat (song, score, reasons).
+    scored = [(song, *score_song(user_prefs, song)) for song in songs]
+
+    # sorted() returns a NEW list, so the caller's `songs` list is left in its
+    # original order. Key on the score (index 1), highest first.
+    return sorted(scored, key=lambda item: item[1], reverse=True)[:k]
