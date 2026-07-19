@@ -177,13 +177,16 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     Score a single song against a user's taste profile.
 
     Scoring recipe (points are additive):
-        +2.0  if the song's genre exactly matches the user's favorite genre
+        +1.0  if the song's genre exactly matches the user's favorite genre
         +1.0  if the song's mood exactly matches the user's favorite mood
-        up to +1.0 for energy similarity, computed as
-              1.0 - abs(song_energy - target_energy), which rewards closeness
-              to the target rather than raw magnitude (0.0 when the energies
-              are a full 1.0 apart)
+        up to +2.0 for energy similarity, computed as
+              2.0 * (1.0 - abs(song_energy - target_energy)), which rewards
+              closeness to the target rather than raw magnitude (0.0 when the
+              energies are a full 1.0 apart)
         +0.5  if the user likes acoustic songs and the song's acousticness > 0.6
+
+    NOTE: sensitivity-test weighting — genre is halved (2.0 -> 1.0) and energy
+    is doubled (max 1.0 -> 2.0) relative to the original recipe.
 
     Parameters:
         user_prefs (Dict): The user's taste profile. Read with the rich keys
@@ -210,10 +213,10 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
     score = 0.0
     reasons: List[str] = []
 
-    # --- Genre: exact match, worth the most. ---
+    # --- Genre: exact match (sensitivity test: halved from 2.0 to 1.0). ---
     if fav_genre is not None and song.get("genre") == fav_genre:
-        score += 2.0
-        reasons.append("genre match (+2.0)")
+        score += 1.0
+        reasons.append("genre match (+1.0)")
 
     # --- Mood: exact match. ---
     if fav_mood is not None and song.get("mood") == fav_mood:
@@ -222,8 +225,9 @@ def score_song(user_prefs: Dict, song: Dict) -> Tuple[float, List[str]]:
 
     # --- Energy: reward closeness to the target, not high energy. ---
     if target_energy is not None:
-        # 1.0 at an exact hit, decaying to 0.0 as the gap approaches 1.0.
-        similarity = 1.0 - abs(float(song.get("energy", 0.0)) - float(target_energy))
+        # 2.0 at an exact hit, decaying to 0.0 as the gap approaches 1.0
+        # (sensitivity test: max contribution doubled from 1.0 to 2.0).
+        similarity = 2.0 * (1.0 - abs(float(song.get("energy", 0.0)) - float(target_energy)))
         if similarity > 0:
             score += similarity  # keep the full-precision value in the score
             # Round only for the human-readable reason string.

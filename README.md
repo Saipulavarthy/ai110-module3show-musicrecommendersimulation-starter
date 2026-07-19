@@ -11,9 +11,7 @@ Your goal is to:
 - Evaluate what your system gets right and wrong
 - Reflect on how this mirrors real world AI recommenders
 
-Replace this paragraph with your own summary of what your version does.
-
----
+This is VibeFinder 1.0, a content-based music recommender simulation. It scores an 18-song catalog against a single user's stated taste profile (favorite genre, favorite mood, target energy, and acoustic preference) using a transparent weighted scoring formula, then returns a ranked top-k list with plain-language explanations for each recommendation.
 
 ## How The System Works
 
@@ -71,6 +69,24 @@ Run the starter tests with:
 ```bash
 pytest
 ```
+========================================================================== test session starts ==========================================================================
+platform darwin -- Python 3.11.7, pytest-7.4.0, pluggy-1.0.0 -- /opt/anaconda3/bin/python
+cachedir: .pytest_cache
+rootdir: /Users/harithaadhikarla/Desktop/CodePath/ai110-module3show-musicrecommendersimulation-starter
+plugins: anyio-4.14.2, dash-3.2.0
+collected 8 items                                                                                                                                                       
+
+tests/test_recommender.py::test_recommend_returns_songs_sorted_by_score PASSED                                                                                    [ 12%]
+tests/test_recommender.py::test_explain_recommendation_returns_non_empty_string PASSED                                                                            [ 25%]
+tests/test_recommender.py::test_genre_match_outranks_perfect_mood_energy_without_acoustic PASSED                                                                  [ 37%]
+tests/test_recommender.py::test_absent_genre_returns_results_but_none_reach_genre_score PASSED                                                                    [ 50%]
+tests/test_recommender.py::test_contradictory_profile_demotes_perfect_categorical_match PASSED                                                                    [ 62%]
+tests/test_recommender.py::test_acoustic_bonus_never_applies_to_non_acoustic_favorite PASSED                                                                      [ 75%]
+tests/test_recommender.py::test_acoustic_threshold_is_a_hard_cliff_at_0_6 PASSED                                                                                  [ 87%]
+tests/test_recommender.py::test_energy_similarity_only_ever_adds_never_penalizes PASSED                                                                           [100%]
+
+=========================================================================== 8 passed in 0.02s ===========================================================
+
 
 You can add more tests in `tests/test_recommender.py`.
 
@@ -121,12 +137,15 @@ Recommendations for profile: pop / happy
 
 Use this section to document the experiments you ran. For example:
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+I halved the genre weight and doubled the max energy weight to test how sensitive the rankings are to my original weighting choices.
+
+**Result:** Sunrise City stayed #1 in both versions, since it wins on genre, mood, and energy regardless of weighting. But Rooftop Lights and Gym Hero swapped places — Rooftop Lights (no genre match, but a mood match and near-perfect energy) overtook Gym Hero (a genre match with no mood match) once energy carried double weight.
+
+**Was it more accurate, or just different?** I'd call this "different" rather than clearly "more accurate" — it's a value judgment, not a correctness issue. Rooftop Lights is indie pop, a close cousin to pop, so arguably deserves to rank near the top of a "pop / happy" profile; the new weighting captures that. But this also means genre no longer guarantees a floor over mood+energy combinations, which could make a pure "I want rock" request return more non-rock songs than expected.
+
+Also tested four adversarial profiles (see `model_card.md` Evaluation section for full details): an internally contradictory profile, a genre-absent profile, a genre-vs-mood tie, and an acoustic dead-weight profile — each exposed a different structural limitation in the scoring logic.
 
 ---
-
 ## Limitations and Risks
 
 Summarize some limitations of your recommender.
@@ -138,6 +157,13 @@ Examples:
 - It might over favor one genre or mood
 
 You will go deeper on this in your model card.
+
+- The catalog only has 18 songs, so several genres appear only once or twice — far too small to represent real musical diversity.
+- Genre is treated as a strict match, not a spectrum, so closely related genres (e.g. indie pop vs. pop) score identically to completely unrelated ones.
+- The system has no way to detect internally contradictory profiles (e.g. wanting "chill" mood at high energy) — it silently returns a mediocre score instead of flagging the conflict.
+- There's no fallback when a user's favorite genre doesn't exist in the catalog — it always returns a full top-5 list, even when nothing meaningfully matches.
+- It doesn't understand lyrics, language, or anything beyond the six numeric/categorical features in the CSV.
+
 
 ---
 
@@ -151,6 +177,4 @@ Write 1 to 2 paragraphs here about what you learned:
 
 - about how recommenders turn data into predictions
 - about where bias or unfairness could show up in systems like this
-
-
 
